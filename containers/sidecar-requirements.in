@@ -1,2 +1,2 @@
-barman[azure,cloud,google,snappy]==3.11.1
+barman[azure,cloud,google,snappy]==3.12.1
 setuptools==75.6.0
