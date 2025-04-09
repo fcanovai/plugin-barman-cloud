@@ -11,32 +11,32 @@ type FeatureItem = {
 
 const FeatureList: FeatureItem[] = [
   {
-    title: 'Easy to Use',
-    Svg: require('@site/static/img/undraw_docusaurus_mountain.svg').default,
+    title: 'Backup your clusters',
+    Svg: require('@site/static/img/undraw_going-up_g8av.svg').default,
     description: (
       <>
-        Docusaurus was designed from the ground up to be easily installed and
-        used to get your website up and running quickly.
+        Securely backup your CloudNativePG clusters to object storage with
+        configurable retention policies and compression options.
       </>
     ),
   },
   {
-    title: 'Focus on What Matters',
-    Svg: require('@site/static/img/undraw_docusaurus_tree.svg').default,
+    title: 'Restore to any point in time',
+    Svg: require('@site/static/img/undraw_season-change_ohe6.svg').default,
     description: (
       <>
-        Docusaurus lets you focus on your docs, and we&apos;ll do the chores. Go
-        ahead and move your docs into the <code>docs</code> directory.
+        Perform flexible restores to any point in time using a combination of
+        base backups and WAL archives.
       </>
     ),
   },
   {
-    title: 'Powered by React',
-    Svg: require('@site/static/img/undraw_docusaurus_react.svg').default,
+    title: 'Cloud-native architecture',
+    Svg: require('@site/static/img/undraw_maintenance_rjtm.svg').default,
     description: (
       <>
-        Extend or customize your website layout by reusing React. Docusaurus can
-        be extended while reusing the same header and footer.
+        Seamlessly integrate with all major cloud providers and on-premises object storage
+        solutions.
       </>
     ),
   },
