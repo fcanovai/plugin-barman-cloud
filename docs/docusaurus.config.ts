@@ -5,7 +5,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
 const config: Config = {
-  title: 'CloudNativePG Barman Cloud Plugin',
+  title: 'Barman Cloud CNPG-I plugin',
   favicon: 'img/favicon.ico',
 
   // Set the production url of your site here
@@ -13,14 +13,15 @@ const config: Config = {
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: '/plugin-barman-cloud/',
+  trailingSlash: true,
 
   // GitHub pages deployment config.
-  // If you aren't using GitHub pages, you don't need these.
-  organizationName: 'cloudnative-pg', // Usually your GitHub org/user name.
-  projectName: 'plugin-barman-cloud', // Usually your repo name.
+  organizationName: 'cloudnative-pg',
+  projectName: 'plugin-barman-cloud',
+  deploymentBranch: 'gh-pages',
 
   onBrokenLinks: 'throw',
-  onBrokenMarkdownLinks: 'warn',
+  onBrokenMarkdownLinks: 'throw',
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
@@ -35,83 +36,85 @@ const config: Config = {
       'classic',
       {
         docs: {
+          path: 'docs',
           sidebarPath: './sidebars.ts',
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
-          editUrl:
-            'https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/',
-        },
-        blog: {
-          showReadingTime: true,
-          feedOptions: {
-            type: ['rss', 'atom'],
-            xslt: true,
-          },
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
-          editUrl:
-            'https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/',
-          // Useful options to enforce blogging best practices
-          onInlineTags: 'warn',
-          onInlineAuthors: 'warn',
-          onUntruncatedBlogPosts: 'warn',
+            includeCurrentVersion: true, // Include the current version in the sidebar
+            versions:{
+              current:{
+                  label: 'Dev',
+                  badge: true,
+                  banner: "unreleased",
+              },
+            }
         },
         theme: {
-          customCss: './src/css/custom.css',
+            customCss: './src/css/custom.css',
         },
       } satisfies Preset.Options,
     ],
   ],
-
+  themes: [
+    [
+      require.resolve("@easyops-cn/docusaurus-search-local"),
+      /** @type {import("@easyops-cn/docusaurus-search-local").PluginOptions} */
+      ({
+        hashed: true,
+        docsDir: ['docs'],
+        searchResultLimits: 8,
+        searchResultContextMaxLength: 50,
+        language: ["en"],
+        // Only index headings and content
+        indexBlog: false,
+        indexPages: false,
+      }),
+    ],
+  ],
   themeConfig: {
-    // Replace with your project's social card
-    image: 'img/docusaurus-social-card.jpg',
+    image: 'img/cloudnativepg-social-card.png',
     navbar: {
       title: 'Barman Cloud CNPG-I plugin',
       logo: {
-        alt: 'My Site Logo',
+        alt: 'CloudNativePG Logo',
         src: 'img/logo.svg',
       },
       items: [
         {
           type: 'docSidebar',
-          sidebarId: 'tutorialSidebar',
+          sidebarId: 'docs',
           position: 'left',
           label: 'Documentation',
         },
         {
-          href: 'https://github.com/cloudnative-pg/plugin-barman-cloud',
-          label: 'GitHub',
-          position: 'right',
+            type: 'docsVersionDropdown',
+            position: 'right',
         },
+          {
+              href: "https://github.com/cloudnative-pg/plugin-barman-cloud",
+              position: "right",
+              className: "header-github-link",
+              "aria-label": "GitHub repository",
+          },
+
       ],
     },
     footer: {
+        logo: {
+            alt: 'CloudNativePG Logo',
+            src: "img/cloudnativepg-landscape-white.png",
+            href: "https://cloudnative-pg.io",
+        },
       style: 'dark',
       links: [
-        {
-          title: 'Docs',
-          items: [
-            {
-              label: 'Tutorial',
-              to: '/docs/intro',
-            },
-          ],
-        },
         {
           title: 'Community',
           items: [
             {
-              label: 'Stack Overflow',
-              href: 'https://stackoverflow.com/questions/tagged/docusaurus',
-            },
-            {
-              label: 'Discord',
-              href: 'https://discordapp.com/invite/docusaurus',
+              label: 'Slack',
+              href: 'https://cloud-native.slack.com/messages/cloudnativepg-users',
             },
             {
               label: 'X',
-              href: 'https://x.com/docusaurus',
+              href: 'https://x.com/CloudNativePG',
             },
           ],
         },
@@ -119,17 +122,25 @@ const config: Config = {
           title: 'More',
           items: [
             {
-              label: 'Blog',
-              to: '/blog',
-            },
-            {
               label: 'GitHub',
               href: 'https://github.com/cloudnative-pg/plugin-barman-cloud',
+            },
+            {
+              label: 'CloudNativePG',
+              href: 'https://cloudnative-pg.io',
             },
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} My Project, Inc. Built with Docusaurus.`,
+      copyright: `
+      Copyright © ${new Date().getFullYear()} CloudNativePG a Series of LF Projects, LLC.<br><br>
+
+      For website terms of use, trademark policy and other project policies please see
+      <a href="https://lfprojects.org/policies/">LF Projects, LLC Policies</a>.<br>
+      <a href="https://www.linuxfoundation.org/trademark-usage/">The Linux Foundation has registered trademarks and uses trademarks</a>.<br>
+      <a href="https://www.postgresql.org/about/policies/trademarks">Postgres, PostgreSQL and the Slonik Logo are
+        trademarks or registered trademarks of the PostgreSQL Community Association of Canada, and
+        used with their permission</a>.`
     },
     prism: {
       theme: prismThemes.github,
