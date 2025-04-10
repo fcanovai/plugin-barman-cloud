@@ -73,12 +73,11 @@ tasks:
       - controller-gen
     env:
       # renovate: datasource=git-refs depName=crd-gen-refs lookupName=https://github.com/cloudnative-pg/daggerverse currentValue=main
-      # TODO: this sha should come from upstream
-      DAGGER_CRDGENREF_SHA: dcca0c0c62e685e8a3f13dfb090aefcd21ef3876
+      # TODO: this sha should come from main branch
+      DAGGER_CRDGENREF_SHA: 807009f26f001db92d552d23f58cef512af91f12
     cmds:
-      # TODO: this module should come from upstream
       - >
-        GITHUB_REF= dagger -s call -m github.com/fcanovai/daggerverse/crd-ref-docs@${DAGGER_CRDGENREF_SHA} generate
+        GITHUB_REF= dagger -s call -m github.com/cloudnative-pg/daggerverse/crd-ref-docs@${DAGGER_CRDGENREF_SHA} generate
         --src .
         --source-path api/v1
         --config-file docs/config.yaml
