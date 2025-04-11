@@ -2,9 +2,12 @@ package common
 
 import (
 	"fmt"
+	"path"
 	"strings"
 
 	barmanapi "github.com/cloudnative-pg/barman-cloud/pkg/api"
+
+	"github.com/cloudnative-pg/plugin-barman-cloud/internal/cnpgi/metadata"
 )
 
 // TODO: refactor.
@@ -37,9 +40,9 @@ const (
 func GetRestoreCABundleEnv(configuration *barmanapi.BarmanObjectStoreConfiguration) []string {
 	var env []string
 
-	if configuration.EndpointCA != nil && configuration.BarmanCredentials.AWS != nil {
+	if configuration.EndpointCA != nil && configuration.AWS != nil {
 		env = append(env, fmt.Sprintf("AWS_CA_BUNDLE=%s", BarmanBackupEndpointCACertificateLocation))
-	} else if configuration.EndpointCA != nil && configuration.BarmanCredentials.Azure != nil {
+	} else if configuration.EndpointCA != nil && configuration.Azure != nil {
 		env = append(env, fmt.Sprintf("REQUESTS_CA_BUNDLE=%s", BarmanBackupEndpointCACertificateLocation))
 	}
 	return env
@@ -69,4 +72,9 @@ func MergeEnv(env []string, incomingEnv []string) []string {
 	}
 
 	return result
+}
+
+// BuildCertificateFilePath builds the path to the barman objectStore certificate
+func BuildCertificateFilePath(objectStoreName string) string {
+	return path.Join(metadata.BarmanCertificatesPath, objectStoreName, metadata.BarmanCertificatesFileName)
 }

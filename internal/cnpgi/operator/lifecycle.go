@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	cnpgv1 "github.com/cloudnative-pg/cloudnative-pg/api/v1"
-	"github.com/cloudnative-pg/cloudnative-pg/pkg/utils"
 	"github.com/cloudnative-pg/cnpg-i-machinery/pkg/pluginhelper/decoder"
 	"github.com/cloudnative-pg/cnpg-i-machinery/pkg/pluginhelper/object"
 	"github.com/cloudnative-pg/cnpg-i/pkg/lifecycle"
@@ -14,11 +14,9 @@ import (
 	"github.com/spf13/viper"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	barmancloudv1 "github.com/cloudnative-pg/plugin-barman-cloud/api/v1"
 	"github.com/cloudnative-pg/plugin-barman-cloud/internal/cnpgi/metadata"
 	"github.com/cloudnative-pg/plugin-barman-cloud/internal/cnpgi/operator/config"
 )
@@ -45,6 +43,9 @@ func (impl LifecycleImplementation) GetCapabilities(
 					},
 					{
 						Type: lifecycle.OperatorOperationType_TYPE_PATCH,
+					},
+					{
+						Type: lifecycle.OperatorOperationType_TYPE_EVALUATE,
 					},
 				},
 			},
@@ -79,10 +80,9 @@ func (impl LifecycleImplementation) LifecycleHook(
 	}
 
 	var cluster cnpgv1.Cluster
-	if err := decoder.DecodeObject(
+	if err := decoder.DecodeObjectLenient(
 		request.GetClusterDefinition(),
 		&cluster,
-		cnpgv1.GroupVersion.WithKind("Cluster"),
 	); err != nil {
 		return nil, err
 	}
@@ -107,56 +107,6 @@ func (impl LifecycleImplementation) LifecycleHook(
 	}
 }
 
-func (impl LifecycleImplementation) collectAdditionalEnvs(
-	ctx context.Context,
-	namespace string,
-	pluginConfiguration *config.PluginConfiguration,
-) ([]corev1.EnvVar, error) {
-	var result []corev1.EnvVar
-
-	if len(pluginConfiguration.BarmanObjectName) > 0 {
-		envs, err := impl.collectObjectStoreEnvs(
-			ctx,
-			types.NamespacedName{
-				Name:      pluginConfiguration.BarmanObjectName,
-				Namespace: namespace,
-			},
-		)
-		if err != nil {
-			return nil, err
-		}
-		result = append(result, envs...)
-	}
-
-	if len(pluginConfiguration.RecoveryBarmanObjectName) > 0 {
-		envs, err := impl.collectObjectStoreEnvs(
-			ctx,
-			types.NamespacedName{
-				Name:      pluginConfiguration.RecoveryBarmanObjectName,
-				Namespace: namespace,
-			},
-		)
-		if err != nil {
-			return nil, err
-		}
-		result = append(result, envs...)
-	}
-
-	return result, nil
-}
-
-func (impl LifecycleImplementation) collectObjectStoreEnvs(
-	ctx context.Context,
-	barmanObjectKey types.NamespacedName,
-) ([]corev1.EnvVar, error) {
-	var objectStore barmancloudv1.ObjectStore
-	if err := impl.Client.Get(ctx, barmanObjectKey, &objectStore); err != nil {
-		return nil, err
-	}
-
-	return objectStore.Spec.InstanceSidecarConfiguration.Env, nil
-}
-
 func (impl LifecycleImplementation) reconcileJob(
 	ctx context.Context,
 	cluster *cnpgv1.Cluster,
@@ -165,10 +115,15 @@ func (impl LifecycleImplementation) reconcileJob(
 ) (*lifecycle.OperatorLifecycleResponse, error) {
 	env, err := impl.collectAdditionalEnvs(ctx, cluster.Namespace, pluginConfiguration)
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
 
-	return reconcileJob(ctx, cluster, request, env)
+	certificates, err := impl.collectAdditionalCertificates(ctx, cluster.Namespace, pluginConfiguration)
+	if err != nil {
+		return nil, err
+	}
+
+	return reconcileJob(ctx, cluster, request, env, certificates)
 }
 
 func reconcileJob(
@@ -176,6 +131,7 @@ func reconcileJob(
 	cluster *cnpgv1.Cluster,
 	request *lifecycle.OperatorLifecycleRequest,
 	env []corev1.EnvVar,
+	certificates []corev1.VolumeProjection,
 ) (*lifecycle.OperatorLifecycleResponse, error) {
 	contextLogger := log.FromContext(ctx).WithName("lifecycle")
 	if pluginConfig := cluster.GetRecoverySourcePlugin(); pluginConfig == nil || pluginConfig.Name != metadata.PluginName {
@@ -184,7 +140,7 @@ func reconcileJob(
 	}
 
 	var job batchv1.Job
-	if err := decoder.DecodeObject(
+	if err := decoder.DecodeObjectStrict(
 		request.GetObjectDefinition(),
 		&job,
 		batchv1.SchemeGroupVersion.WithKind("Job"),
@@ -197,7 +153,7 @@ func reconcileJob(
 		WithValues("jobName", job.Name)
 	contextLogger.Debug("starting job reconciliation")
 
-	if job.Spec.Template.Labels[utils.JobRoleLabelName] != "full-recovery" {
+	if getCNPGJobRole(&job) != "full-recovery" {
 		contextLogger.Debug("job is not a recovery job, skipping")
 		return nil, nil
 	}
@@ -212,6 +168,7 @@ func reconcileJob(
 			Args: []string{"restore"},
 		},
 		env,
+		certificates,
 	); err != nil {
 		return nil, fmt.Errorf("while reconciling pod spec for job: %w", err)
 	}
@@ -235,10 +192,15 @@ func (impl LifecycleImplementation) reconcilePod(
 ) (*lifecycle.OperatorLifecycleResponse, error) {
 	env, err := impl.collectAdditionalEnvs(ctx, cluster.Namespace, pluginConfiguration)
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
 
-	return reconcilePod(ctx, cluster, request, pluginConfiguration, env)
+	certificates, err := impl.collectAdditionalCertificates(ctx, cluster.Namespace, pluginConfiguration)
+	if err != nil {
+		return nil, err
+	}
+
+	return reconcilePod(ctx, cluster, request, pluginConfiguration, env, certificates)
 }
 
 func reconcilePod(
@@ -247,6 +209,7 @@ func reconcilePod(
 	request *lifecycle.OperatorLifecycleRequest,
 	pluginConfiguration *config.PluginConfiguration,
 	env []corev1.EnvVar,
+	certificates []corev1.VolumeProjection,
 ) (*lifecycle.OperatorLifecycleResponse, error) {
 	pod, err := decoder.DecodePodJSON(request.GetObjectDefinition())
 	if err != nil {
@@ -267,6 +230,7 @@ func reconcilePod(
 				Args: []string{"instance"},
 			},
 			env,
+			certificates,
 		); err != nil {
 			return nil, fmt.Errorf("while reconciling pod spec for pod: %w", err)
 		}
@@ -291,6 +255,7 @@ func reconcilePodSpec(
 	mainContainerName string,
 	sidecarConfig corev1.Container,
 	additionalEnvs []corev1.EnvVar,
+	certificates []corev1.VolumeProjection,
 ) error {
 	envs := []corev1.EnvVar{
 		{
@@ -306,6 +271,14 @@ func reconcilePodSpec(
 			// should we mount an emptyDir volume just for that?
 			Name:  "SPOOL_DIRECTORY",
 			Value: "/controller/wal-restore-spool",
+		},
+		{
+			Name:  "CUSTOM_CNPG_GROUP",
+			Value: cluster.GetObjectKind().GroupVersionKind().Group,
+		},
+		{
+			Name:  "CUSTOM_CNPG_VERSION",
+			Value: cluster.GetObjectKind().GroupVersionKind().Version,
 		},
 	}
 
@@ -326,6 +299,18 @@ func reconcilePodSpec(
 	sidecarConfig.Image = viper.GetString("sidecar-image")
 	sidecarConfig.ImagePullPolicy = cluster.Spec.ImagePullPolicy
 	sidecarConfig.StartupProbe = baseProbe.DeepCopy()
+	sidecarConfig.SecurityContext = &corev1.SecurityContext{
+		AllowPrivilegeEscalation: ptr.To(false),
+		RunAsNonRoot:             ptr.To(true),
+		Privileged:               ptr.To(false),
+		ReadOnlyRootFilesystem:   ptr.To(true),
+		SeccompProfile: &corev1.SeccompProfile{
+			Type: corev1.SeccompProfileTypeRuntimeDefault,
+		},
+		Capabilities: &corev1.Capabilities{
+			Drop: []corev1.Capability{"ALL"},
+		},
+	}
 
 	// merge the main container envs if they aren't already set
 	for _, container := range spec.Containers {
@@ -360,8 +345,20 @@ func reconcilePodSpec(
 		}
 	}
 
-	if err := InjectPluginSidecarPodSpec(spec, &sidecarConfig, mainContainerName, true); err != nil {
+	if err := injectPluginSidecarPodSpec(spec, &sidecarConfig, mainContainerName); err != nil {
 		return err
+	}
+
+	// inject the volume containing the certificates if needed
+	if !volumeListHasVolume(spec.Volumes, barmanCertificatesVolumeName) {
+		spec.Volumes = append(spec.Volumes, corev1.Volume{
+			Name: barmanCertificatesVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				Projected: &corev1.ProjectedVolumeSource{
+					Sources: certificates,
+				},
+			},
+		})
 	}
 
 	return nil
@@ -407,16 +404,15 @@ func InjectPluginVolumePodSpec(spec *corev1.PodSpec, mainContainerName string) {
 	}
 }
 
-// InjectPluginSidecarPodSpec injects a plugin sidecar into a CNPG Pod spec.
+// injectPluginSidecarPodSpec injects a plugin sidecar into a CNPG Pod spec.
 //
 // If the "injectMainContainerVolumes" flag is true, this will append all the volume
 // mounts that are used in the instance manager Pod to the passed sidecar
 // container, granting it superuser access to the PostgreSQL instance.
-func InjectPluginSidecarPodSpec(
+func injectPluginSidecarPodSpec(
 	spec *corev1.PodSpec,
 	sidecar *corev1.Container,
 	mainContainerName string,
-	injectMainContainerVolumes bool,
 ) error {
 	sidecar = sidecar.DeepCopy()
 	InjectPluginVolumePodSpec(spec, mainContainerName)
@@ -447,11 +443,39 @@ func InjectPluginSidecarPodSpec(
 	}
 
 	// Do not modify the passed sidecar definition
-	if injectMainContainerVolumes {
-		sidecar.VolumeMounts = append(sidecar.VolumeMounts, volumeMounts...)
-	}
+	sidecar.VolumeMounts = append(
+		sidecar.VolumeMounts,
+		corev1.VolumeMount{
+			Name:      barmanCertificatesVolumeName,
+			MountPath: metadata.BarmanCertificatesPath,
+		})
+	sidecar.VolumeMounts = append(sidecar.VolumeMounts, volumeMounts...)
 	sidecar.RestartPolicy = ptr.To(corev1.ContainerRestartPolicyAlways)
 	spec.InitContainers = append(spec.InitContainers, *sidecar)
 
 	return nil
+}
+
+// volumeListHasVolume check if a volume with a known name exists
+// in the volume list
+func volumeListHasVolume(volumes []corev1.Volume, name string) bool {
+	for i := range volumes {
+		if volumes[i].Name == name {
+			return true
+		}
+	}
+
+	return false
+}
+
+// getCNPGJobRole gets the role associated to a CNPG job
+func getCNPGJobRole(job *batchv1.Job) string {
+	const jobRoleLabelSuffix = "/jobRole"
+	for k, v := range job.Spec.Template.Labels {
+		if strings.HasSuffix(k, jobRoleLabelSuffix) {
+			return v
+		}
+	}
+
+	return ""
 }

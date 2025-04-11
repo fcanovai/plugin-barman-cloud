@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.17.2
   name: objectstores.barmancloud.cnpg.io
 spec:
   group: barmancloud.cnpg.io
@@ -37,12 +37,12 @@ spec:
           metadata:
             type: object
           spec:
-            description: ObjectStoreSpec defines the desired state of ObjectStore.
+            description: |-
+              Specification of the desired behavior of the ObjectStore.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status
             properties:
               configuration:
-                description: |-
-                  BarmanObjectStoreConfiguration contains the backup configuration
-                  using Barman against an S3-compatible object storage
+                description: The configuration for the barman-cloud tool suite
                 properties:
                   azureCredentials:
                     description: The credentials to use to upload data to Azure Blob
@@ -139,10 +139,10 @@ spec:
                         description: |-
                           Compress a backup file (a tar file per tablespace) while streaming it
                           to the object store. Available options are empty string (no
-                          compression, default), `gzip`, `bzip2` or `snappy`.
+                          compression, default), `gzip`, `bzip2`, and `snappy`.
                         enum:
-                        - gzip
                         - bzip2
+                        - gzip
                         - snappy
                         type: string
                       encryption:
@@ -330,11 +330,15 @@ spec:
                       compression:
                         description: |-
                           Compress a WAL file before sending it to the object store. Available
-                          options are empty string (no compression, default), `gzip`, `bzip2` or `snappy`.
+                          options are empty string (no compression, default), `gzip`, `bzip2`,
+                          `lz4`, `snappy`, `xz`, and `zstd`.
                         enum:
-                        - gzip
                         - bzip2
+                        - gzip
+                        - lz4
                         - snappy
+                        - xz
+                        - zstd
                         type: string
                       encryption:
                         description: |-
@@ -379,8 +383,8 @@ spec:
                 - destinationPath
                 type: object
               instanceSidecarConfiguration:
-                description: InstanceSidecarConfiguration defines the configuration
-                  for the sidecar that runs in the instance pods.
+                description: The configuration for the sidecar that runs in the instance
+                  pods
                 properties:
                   env:
                     description: The environment to be explicitly passed to the sidecar
@@ -502,12 +506,52 @@ spec:
                       - name
                       type: object
                     type: array
+                  retentionPolicyIntervalSeconds:
+                    default: 1800
+                    description: |-
+                      The retentionCheckInterval defines the frequency at which the
+                      system checks and enforces retention policies.
+                    type: integer
                 type: object
+              retentionPolicy:
+                description: |-
+                  RetentionPolicy is the retention policy to be used for backups
+                  and WALs (i.e. '60d'). The retention policy is expressed in the form
+                  of `XXu` where `XX` is a positive integer and `u` is in `[dwm]` -
+                  days, weeks, months.
+                pattern: ^[1-9][0-9]*[dwm]$
+                type: string
             required:
             - configuration
             type: object
           status:
-            description: ObjectStoreStatus defines the observed state of ObjectStore.
+            description: |-
+              Most recently observed status of the ObjectStore. This data may not be up to
+              date. Populated by the system. Read-only.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status
+            properties:
+              serverRecoveryWindow:
+                additionalProperties:
+                  description: |-
+                    RecoveryWindow represents the time span between the first
+                    recoverability point and the last successful backup of a PostgreSQL
+                    server, defining the period during which data can be restored.
+                  properties:
+                    firstRecoverabilityPoint:
+                      description: |-
+                        The first recoverability point in a PostgreSQL server refers to
+                        the earliest point in time to which the database can be
+                        restored.
+                      format: date-time
+                      type: string
+                    lastSuccussfulBackupTime:
+                      description: The last successful backup time
+                      format: date-time
+                      type: string
+                  type: object
+                description: ServerRecoveryWindow maps each server to its recovery
+                  window
+                type: object
             type: object
         required:
         - metadata

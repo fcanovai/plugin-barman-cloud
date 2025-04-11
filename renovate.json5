@@ -13,7 +13,10 @@
   prConcurrentLimit: 5,
   "gomod": {
     // Do not manage the dagger go.mod file
-    "ignorePaths": ["dagger/gotest/go.mod"],
+    "ignorePaths": [
+      "dagger/gotest/go.mod",
+      "dagger/e2e/go.mod"
+    ],
   },
   "postUpdateOptions": [
     "gomodTidy"
@@ -35,6 +38,15 @@
       ]
     }
   ],
+  "pip-compile": {
+    "fileMatch": ["(^|/)sidecar-requirements\\.txt$"]
+  },
+  "pip_requirements": {
+    "enabled": false
+  },
+  "pip_setup": {
+    "enabled": false
+  },
   "packageRules": [
     {
       "matchDatasources": [
@@ -63,6 +75,18 @@
         "digest"
       ],
       "groupName": "all cloudnative-pg daggerverse dependencies"
+    },
+    {
+      "matchDatasources": [
+        "git-refs"
+      ],
+      "matchPackageNames": [
+        "https://github.com/sagikazarmark/daggerverse"
+      ],
+      "matchUpdateTypes": [
+        "digest"
+      ],
+      "groupName": "all sagikazarmark daggerverse dependencies"
     },
     {
       "matchUpdateTypes": [

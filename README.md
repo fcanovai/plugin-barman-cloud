@@ -17,6 +17,7 @@ plugin for [CloudNativePG](https://cloudnative-pg.io/).
   - [Backup](#backup)
   - [Restore](#restore)
   - [Replica clusters](#replica-clusters)
+- [API Reference](#api-reference)
 
 ## Features
 
@@ -74,19 +75,19 @@ Here’s an enhanced version of your instructions for verifying the prerequisite
 If CloudNativePG is installed in the default `cnpg-system` namespace, verify its version using the following command:
 
 ```sh
-kubectl get deployment -n cnpg-system cnpg-controller-manager \
+kubectl get deployment -n cnpg-system cnpg-controller-manager -o yaml \
   | grep ghcr.io/cloudnative-pg/cloudnative-pg
 ```
 
 Example output:
 
 ```output
-image: ghcr.io/cloudnative-pg/cloudnative-pg:1.25.0-rc1
+image: ghcr.io/cloudnative-pg/cloudnative-pg:1.25.0
 ```
 
 Ensure that the version displayed is **1.25** or newer.
 
-Then, use the [cmctl](https://cert-manager.io/v1.6-docs/usage/cmctl/#installation)
+Then, use the [cmctl](https://cert-manager.io/docs/reference/cmctl/#installation)
 tool to confirm that `cert-manager` is correctly installed:
 
 ```sh
@@ -199,6 +200,7 @@ spec:
   imagePullPolicy: Always
   plugins:
   - name: barman-cloud.cloudnative-pg.io
+    isWALArchiver: true
     parameters:
       barmanObjectName: minio-store
   storage:
@@ -272,6 +274,7 @@ spec:
       source: source
   plugins:
   - name: barman-cloud.cloudnative-pg.io
+    isWALArchiver: true
     parameters:
       # Backup Object Store (push, read-write)
       barmanObjectName: minio-store-bis
@@ -311,6 +314,7 @@ spec:
 
   plugins:
   - name: barman-cloud.cloudnative-pg.io
+    isWALArchiver: true
     parameters:
       barmanObjectName: minio-store-a
 
@@ -332,3 +336,8 @@ spec:
       parameters:
         barmanObjectName: minio-store-b
 ```
+
+## API Reference
+
+You can find the API reference on its
+[dedicated page](./docs/src/plugin-barman-cloud.v1.md).

@@ -4,11 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strconv"
 	"time"
 
 	barmanBackup "github.com/cloudnative-pg/barman-cloud/pkg/backup"
-	barmanCapabilities "github.com/cloudnative-pg/barman-cloud/pkg/capabilities"
 	barmanCredentials "github.com/cloudnative-pg/barman-cloud/pkg/credentials"
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/postgres"
 	"github.com/cloudnative-pg/cnpg-i/pkg/backup"
@@ -20,7 +18,6 @@ import (
 
 	barmancloudv1 "github.com/cloudnative-pg/plugin-barman-cloud/api/v1"
 	"github.com/cloudnative-pg/plugin-barman-cloud/internal/cnpgi/common"
-	"github.com/cloudnative-pg/plugin-barman-cloud/internal/cnpgi/metadata"
 	"github.com/cloudnative-pg/plugin-barman-cloud/internal/cnpgi/operator/config"
 )
 
@@ -30,16 +27,6 @@ type BackupServiceImplementation struct {
 	Client       client.Client
 	InstanceName string
 	backup.UnimplementedBackupServer
-}
-
-// This is an implementation of the barman executor
-// that always instruct the barman library to use the
-// "--name" option for backups. We don't support old
-// Barman versions that do not implement that option.
-type barmanCloudExecutor struct{}
-
-func (barmanCloudExecutor) ShouldForceLegacyBackup() bool {
-	return false
 }
 
 // GetCapabilities implements the BackupService interface
@@ -84,26 +71,20 @@ func (b BackupServiceImplementation) Backup(
 		return nil, err
 	}
 
-	capabilities, err := barmanCapabilities.CurrentCapabilities()
-	if err != nil {
-		contextLogger.Error(err, "while getting capabilities")
-		return nil, err
-	}
-	backupCmd := barmanBackup.NewBackupCommand(
-		&objectStore.Spec.Configuration,
-		capabilities,
-	)
+	backupCmd := barmanBackup.NewBackupCommand(&objectStore.Spec.Configuration)
 
 	// We need to connect to PostgreSQL and to do that we need
 	// PGHOST (and the like) to be available
 	osEnvironment := os.Environ()
 	caBundleEnvironment := common.GetRestoreCABundleEnv(&objectStore.Spec.Configuration)
-	env, err := barmanCredentials.EnvSetBackupCloudCredentials(
+	env, err := barmanCredentials.EnvSetCloudCredentialsAndCertificates(
 		ctx,
 		b.Client,
 		objectStore.Namespace,
 		&objectStore.Spec.Configuration,
-		common.MergeEnv(osEnvironment, caBundleEnvironment))
+		common.MergeEnv(osEnvironment, caBundleEnvironment),
+		common.BuildCertificateFilePath(objectStore.Name),
+	)
 	if err != nil {
 		contextLogger.Error(err, "while setting backup cloud credentials")
 		return nil, err
@@ -116,7 +97,6 @@ func (b BackupServiceImplementation) Backup(
 		backupName,
 		configuration.ServerName,
 		env,
-		barmanCloudExecutor{},
 		postgres.BackupTemporaryDirectory,
 	); err != nil {
 		contextLogger.Error(err, "while taking backup")
@@ -127,7 +107,6 @@ func (b BackupServiceImplementation) Backup(
 		ctx,
 		backupName,
 		configuration.ServerName,
-		barmanCloudExecutor{},
 		env)
 	if err != nil {
 		contextLogger.Error(err, "while getting executed backup info")
@@ -146,11 +125,6 @@ func (b BackupServiceImplementation) Backup(
 		EndLsn:     executedBackupInfo.EndLSN,
 		InstanceId: b.InstanceName,
 		Online:     true,
-		Metadata: map[string]string{
-			"timeline":    strconv.Itoa(executedBackupInfo.TimeLine),
-			"version":     metadata.Data.Version,
-			"name":        metadata.Data.Name,
-			"displayName": metadata.Data.DisplayName,
-		},
+		Metadata:   newBackupResultMetadata(configuration.Cluster.ObjectMeta.UID, executedBackupInfo.TimeLine).toMap(),
 	}, nil
 }
