@@ -68,6 +68,7 @@ tasks:
 
   apidoc:
     desc: Update the API Reference section of the documentation
+    run: once
     env:
       # renovate: datasource=git-refs depName=genref lookupName=https://github.com/cloudnative-pg/daggerverse currentValue=main
       DAGGER_APIDOC_SHA: 00cead9710f409ceb3a818fe5fd7ba683ee93ac8
@@ -75,12 +76,24 @@ tasks:
       - GITHUB_REF= dagger -s call -m github.com/cloudnative-pg/daggerverse/genref@${DAGGER_APIDOC_SHA} genref --source .
         --args "-c=config.yaml" --args "-o=src" --args "-include=plugin-barman-cloud"
         file --path src/plugin-barman-cloud.v1.md
-        export --path docs/src/plugin-barman-cloud.v1.md
+        export --path docs/docs/plugin-barman-cloud.v1.md
     sources:
       - ./api/**/*.go
       - ./docs/config.yaml
-    generates:
-      - ./docs/src/plugin-barman-cloud.v1.md
+
+  docusaurus-build-test:
+    desc: Check that the documentation builds
+    #TODO: activate this deps when the apidoc is markdown
+    # deps:
+    #- apidoc
+    env:
+      # renovate: datasource=git-refs depName=docusaurus lookupname=https://github.com/levlaz/daggerverse currentValue=main
+      DAGGER_DOCUSAURUS_SHA: 47f5206067011dad0f581d4e7db7afddda32acd0
+    cmds:
+      - GITHUB_REF= dagger -s call -m github.com/levlaz/daggerverse/docusaurus@${DAGGER_DOCUSAURUS_SHA}
+        --src docs --yarn build
+    src:
+      - ./docs/**/*
 
   go-test:
     desc: Run go test
@@ -301,6 +314,7 @@ tasks:
       - lint
       - go-test
       - e2e-ephemeral
+      - docusaurus-build-test
 
   publish:
     desc: Build and publish a container image for the plugin
