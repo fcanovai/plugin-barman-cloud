@@ -31,23 +31,23 @@ jobs:
           node-version: latest
           check-latest: 'false'
           cache: yarn
-          cache-dependency-path: docs/package-lock.json
+          cache-dependency-path: docs/website/package-lock.json
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
       - name: Install dependencies
-        working-directory: docs
+        working-directory: docs/website
         run: yarn install --frozen-lockfile --non-interactive
 
       - name: Build website
-        working-directory: docs
+        working-directory: docs/website
         run: yarn build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs/build
+          path: docs/website/build
 
   deploy:
     permissions:
