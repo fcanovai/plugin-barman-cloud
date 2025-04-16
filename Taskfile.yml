@@ -80,14 +80,14 @@ tasks:
         GITHUB_REF= dagger -s call -m github.com/cloudnative-pg/daggerverse/crd-ref-docs@${DAGGER_CRDGENREF_SHA} generate
         --src .
         --source-path api/v1
-        --config-file docs/crd-gen-refs/config.yaml
+        --config-file hack/crd-gen-refs/config.yaml
         --renderer markdown
-        --templates-dir docs/crd-gen-refs/markdown
+        --templates-dir hack/crd-gen-refs/markdown
         file --path out.md
-        export --path docs/docs/plugin-barman-cloud.v1.md
+        export --path web/docs/plugin-barman-cloud.v1.md
     sources:
       - ./api/**/*.go
-      - ./docs/crd-gen-refs/**/*
+      - ./hack/docs/crd-gen-refs/**/*
       - ./Taskfile.yml
 
   docusaurus-build-test:
@@ -99,9 +99,9 @@ tasks:
       DAGGER_DOCUSAURUS_SHA: 47f5206067011dad0f581d4e7db7afddda32acd0
     cmds:
       - GITHUB_REF= dagger -s call -m github.com/levlaz/daggerverse/docusaurus@${DAGGER_DOCUSAURUS_SHA}
-        --src docs --yarn build
+        --src web/docs --yarn build
     src:
-      - ./docs/**/*
+      - ./web/docs/**/*
 
   docusaurus-version-is-aligned:
     desc: Verify that a documentation version exists for the current version of the plugin
@@ -109,7 +109,7 @@ tasks:
       - $(dagger -s call -m dagger/check-doc-version has-version-documentation --src .)
     src:
       - .release-please-manifest.json
-      - .docs/versions.json
+      - ./web/docs/versions.json
 
   go-test:
     desc: Run go test
